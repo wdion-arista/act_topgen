@@ -72,3 +72,6 @@ clab_tools_os_version: "ubuntu-2204-lts"
 clab_add_tools_server: true
 clab_config_dir: "configs"
 clab_config_default: "default.cfg"
+clab_linux_image: "ghcr.io/aristanetworks/aclabs/host-ubuntu:rev1.0"
+clab_avd_configs: "../intended/configs"
+clab_device_default: true

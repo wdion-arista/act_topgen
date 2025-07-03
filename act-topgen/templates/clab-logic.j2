@@ -27,7 +27,11 @@
 {%             break %}
 {%         endfor %}
 {%         do node_dict[nodename].update({"kind": "arista_ceos"}) %}
-{%         do node_dict[nodename].update({"startup-config": clab_config_dir ~ "/" ~ nodename ~ ".cfg"}) %}
+{%         if clab_device_default  %}
+{%              do node_dict[nodename].update({"startup-config": clab_config_dir ~ "/" ~ nodename ~ ".cfg"}) %}
+{%         else %}
+{%             do node_dict[nodename].update({"startup-config": clab_avd_configs ~ "/" ~ nodename ~ ".cfg"}) %}
+{%         endif %}
 {%         set node_ethernet_interfaces = [] %}
 {#         version 3 of avd uses dict of dicts for interfaces #}
 {%         if hostvars[node].ethernet_interfaces is defined and hostvars[node].ethernet_interfaces is mapping %}
