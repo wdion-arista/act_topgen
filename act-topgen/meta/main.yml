@@ -1,7 +1,7 @@
 galaxy_info:
   author: emilarista
 
-  description: CE ACT Topology Generation
+  description: CE ACT / Containerlab Topology Generation
   company: Arista
 
   # If the issue tracker for your role is not on github, uncomment the

@@ -86,3 +86,44 @@ act_connected_nodes_range: 192.168.0.128/25
 # Use older style ACT topology connections (nodes[].neighbors)
 act_use_old_connections: false
 ```
+
+## ContainerLab addon
+
+```yaml
+---
+# defaults file for act-topgen - containerlab
+
+# Name of Containerlab
+clab_name: "demo"
+
+# Prefix for the lab
+clab_prefix: ""
+
+# Folder to create to store the Containerlab config and data files
+clab_output_folder: "clab"
+
+# Default output name of the Containerlab config file.
+clab_output_filename: "topology.clab.yml"
+
+# cEOS version to use
+clab_eos_version: "arista/ceos:4.34.1F"
+
+# Create linux tools device
+clab_add_tools_server: true
+
+# Linux container image to use.
+clab_linux_image: "ghcr.io/aristanetworks/aclabs/host-ubuntu:rev1.0"
+
+# Vanilla config location (gets auto created)
+clab_config_dir: "configs"
+
+# Default config file to use
+clab_config_default: "default.cfg"
+
+# AVD configs folder location
+clab_avd_configs: "../intended/configs"
+
+# Use the default vanilla coonfig or AVD
+clab_device_default: true
+
+```
