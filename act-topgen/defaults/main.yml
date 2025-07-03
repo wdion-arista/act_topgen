@@ -60,3 +60,15 @@ act_use_old_connections: false
 
 # internet for veos devices
 act_veos_internet_access: false
+
+
+# ContainerLAB
+clab_name: "demo"
+clab_prefix: ""
+clab_output_folder: "clab"
+clab_output_filename: "topology.clab.yml"
+clab_eos_version: "arista/ceos:4.34.1F"
+clab_tools_os_version: "ubuntu-2204-lts"
+clab_add_tools_server: true
+clab_config_dir: "configs"
+clab_config_default: "default.cfg"
