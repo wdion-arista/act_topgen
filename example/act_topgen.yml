@@ -21,7 +21,7 @@
     act_cvp_version: "2024.3.1"
     # Device (veos/generic) user/pass
     act_device_user: "cvpadmin"
-    act_device_password: "cvp123!"
+    act_device_password: "ABC123!"
     # act_cvp_user: "root"
     act_cvp_password: "cvproot"
     act_add_connected_nodes: true
