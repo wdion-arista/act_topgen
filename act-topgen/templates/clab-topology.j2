@@ -6,7 +6,9 @@
 # Role path     : {{ role_path }}
 
 name: {{ clab_name }}
+{% if clab_prefix %}
 prefix: {{ clab_prefix }}
+{% endif %}
 topology:
   {{ topology.kinds | to_nice_yaml(indent=2, width=1337)  | indent(2) }}
   {{ topology.nodes | to_nice_yaml(indent=2, width=1337) | indent(2) }}
