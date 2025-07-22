@@ -88,6 +88,48 @@ act_use_old_connections: false
 
 # internet for veos devices
 act_veos_internet_access: false
+
+
+## ContainerLAB
+
+# Name of Containerlab
+clab_name: "demo"
+
+# Prefix for the lab
+clab_prefix: ""
+
+# Folder to create to store the Containerlab config and data files
+clab_output_folder: "{{ inventory_dir }}/clab/"
+
+# Default output name of the Containerlab config file.
+clab_output_filename: "topology.clab.yml"
+
+# cEOS version to use
+clab_eos_version: "arista/ceos:4.34.1F"
+
+# Linux container image to use.
+clab_linux_image: "ghcr.io/aristanetworks/aclabs/host-ubuntu:rev1.0"
+
+# Create linux tools device
+clab_add_tools_server: false
+
+# Tool Server IP
+clab_tools_server_ip: null
+
+# Vanilla config location (gets auto created)
+clab_config_dir: "configs"
+
+# Default config file to use
+clab_config_default: "default.cfg"
+
+# AVD configs folder location
+clab_avd_configs: "{{ inventory_dir }}/intended/configs"
+
+# Use the default vanilla config or AVD
+clab_device_default: true
+
+# Use the default vanilla coonfig or AVD
+clab_static_mgmt_ip: false
 ```
 
 ## Inventory Update Script
