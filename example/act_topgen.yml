@@ -1,0 +1,52 @@
+---
+# Install:
+# ansible-galaxy install -g -f -r /app/requirements.yml
+- name: Build ACT / ContainerLab Topology
+  hosts: "{{ target_hosts | default('FABRIC') }}"
+  connection: local
+  gather_facts: false
+  vars:
+    basename_act: "{{ lookup('env', 'PROJECT_NAME') | default('ce-act_' ~ lookup('community.general.random_string', length=10)) }}"
+    structured_folder: "{{ inventory_dir }}/intended/structured_configs/"
+    output_folder: "{{ inventory_dir }}/act/"
+    output_filename: "{{ basename_act }}.yml"
+    avd_structured_config_file_format: yml
+    # Whether to indicate to ACT to automatically configure CVP
+    act_add_cvp: false
+    act_cvp_auto_configuration: true
+    # Versions
+    act_eos_version: "4.33.1.1F"
+    act_generic_os_version: "ubuntu-2404-lts-amd64"
+    act_tools_os_version: "ubuntu-2204-lts"
+    act_cvp_version: "2024.3.1"
+    # Device (veos/generic) user/pass
+    act_device_user: "cvpadmin"
+    act_device_password: "cvp123!"
+    # act_cvp_user: "root"
+    act_cvp_password: "cvproot"
+    act_add_connected_nodes: true
+    act_connected_nodes_map:
+      server: 'generic'
+      workstation: 'generic'
+    act_veos_internet_access: true
+
+    # ContainerLab Config
+    clab_name: "{{ basename_act }}"
+    # clab_prefix: ""
+    # clab_output_folder: "{{ inventory_dir }}/clab"
+    clab_output_filename: "{{ basename_act }}.clab.yml"
+    clab_eos_version: "arista/ceos:4.34.1F"
+    # clab_linux_image: "ghcr.io/aristanetworks/aclabs/host-ubuntu:rev1.0"
+    clab_add_tools_server: true
+    # clab_tools_server_ip: 172.20.20.200
+    clab_avd_configs: "{{ inventory_dir }}/clab/intended/configs"
+    # true = default config or false = AVD config
+    clab_device_default: false
+    # clab_static_mgmt_ip: true
+
+  tasks:
+    - name: Generate ACT / ConatinerLabs Topology File
+      ansible.builtin.import_role:
+        # For testing act-topgen
+        #name: act_topgen/act-topgen
+        name: act-topgen

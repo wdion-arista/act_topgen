@@ -19,13 +19,15 @@
 {%         elif hostvars[node].management_interfaces is defined %}
 {%             set node_mgmt_interfaces = hostvars[node].management_interfaces %}
 {%         endif %}
-{%         for mgmt_if in node_mgmt_interfaces %}
-{%             set node_mgmt_ip = mgmt_if.ip_address | split("/") %}
-{%             do node_dict[nodename].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
-{%             do node_dict[nodename].update({"env": {}}) %}
-{%             do node_dict[nodename].env.update({"IPV4": node_mgmt_ip[0]}) %}
-{%             break %}
-{%         endfor %}
+{%         if clab_static_mgmt_ip %}
+{%              for mgmt_if in node_mgmt_interfaces %}
+{%                  set node_mgmt_ip = mgmt_if.ip_address | split("/") %}
+{%                  do node_dict[nodename].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
+{# {%                  do node_dict[nodename].update({"env": {}}) %}
+{%                  do node_dict[nodename].env.update({"IPV4": node_mgmt_ip[0]}) %} #}
+{%                  break %}
+{%              endfor %}
+{%         endif %}
 {%         do node_dict[nodename].update({"kind": "arista_ceos"}) %}
 {%         if clab_device_default  %}
 {%              do node_dict[nodename].update({"startup-config": clab_config_dir ~ "/" ~ nodename ~ ".cfg"}) %}
@@ -63,7 +65,6 @@
 {%                                 do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                                 set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                                 set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
-{%                                 do avd_ext_nodes[peer_node].update({"IPV4": mgmt_ip ~ "/24" }) %}
 {%                                 do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
 {%                             endif %}
 {%                         endif %}
@@ -104,7 +105,6 @@
 {%                         do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                         set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                         set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
-{%                         do avd_ext_nodes[peer_node].update({"IPV4": mgmt_ip}) %}
 {%                         do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
 {%                         do avd_ext_nodes[peer_node].update({"neighbors": []}) %}
 {%                         do avd_ext_nodes[peer_node]["neighbors"].append(avd_ext_node_neighbordict) %}
@@ -128,7 +128,13 @@
 {%     do nodes_list.append({ node: avd_ext_nodes[node] }) %}
 {% endfor %}
 {% if clab_add_tools_server %}
-{%     do nodes_list.update({"tools-server": {"kind": "linux","mgmt-ipv4": clab_tools_server_ip,"env": {"STATIC_ROUTE": "10.0.0.0/8", "GW": "10.10.10.1" }}}) %}
+{%   set node_tool_dict = dict() %}
+{%   do node_tool_dict.update({ "tools-server": {"kind": "linux"}}) %}
+{%   if clab_tools_server_ip %}
+{%     do node_tool_dict["tools-server"].update({"mgmt-ipv4": clab_tools_server_ip}) %}
+{%   endif %}
+{%   do nodes_list.update(node_tool_dict) %}
+{# {%   do nodes_list.update({"tools-server": {"kind": "linux","mgmt-ipv4": clab_tools_server_ip,"env": {"STATIC_ROUTE": "10.0.0.0/8", "GW": "172.20.20.1" }}}) %} #}
 {% endif %}
 {% set nodes_data.nodes = {"nodes": nodes_list} %}
 {# Build Topology #}
