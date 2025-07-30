@@ -10,18 +10,37 @@
   delegate_to: localhost
   run_once: true
 
+- name: Check if 'clab/intended/structured_configs' directory exists
+  ansible.builtin.stat:
+    path: "{{ clab_structured_folder | default('clab/intended/structured_configs') }}"
+  register: clab_intended_structure_stat
+  delegate_to: localhost
+
 - name: Include device structured configuration variables
-  include_vars: "{{ filename }}"
+  ansible.builtin.include_vars: "{{ filename | trim }}"
   delegate_to: localhost
   vars:
-    filename: "{{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}"
+    filename: >-
+      {% if clab_intended_structure_stat.stat.exists and clab_intended_structure_stat.stat.isdir %}
+      {{ clab_structured_folder | default('clab/intended/structured_configs') }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}
+      {% else %}
+      {{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}
+      {% endif %}
   tags:
     - always
+
+# - name: Include device structured configuration variables
+#   include_vars: "{{ filename }}"
+#   delegate_to: localhost
+#   vars:
+#     filename: "{{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}"
+#   tags:
+#     - always
 
 - name: Build topology
   delegate_to: localhost
   run_once: true
-  template:
+  ansible.builtin.template:
     src: main.j2
     dest: "{{ output_folder }}/{{ output_filename }}"
     mode: 0664
@@ -35,7 +54,7 @@
   loop:
     - "{{ clab_output_folder }}"
   delegate_to: localhost
-  run_once: true    
+  run_once: true
 
 - name: Create required clab/config output directories if not present
   ansible.builtin.file:
@@ -50,14 +69,14 @@
 - name: Build topology Clab
   delegate_to: localhost
   run_once: true
-  template:
+  ansible.builtin.template:
     src: clab-main.j2
     dest: "{{ clab_output_folder }}/{{ clab_output_filename }}"
     mode: 0664  
 
 - name: Build basefile clab
   delegate_to: localhost
-  template:
+  ansible.builtin.template:
     src: clab-config-base.j2
     dest: "{{ clab_output_folder }}/{{ clab_config_dir }}/{{ inventory_hostname }}.cfg"
     mode: 0664  
