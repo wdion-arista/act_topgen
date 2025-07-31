@@ -123,7 +123,13 @@ clab_config_default: "default.cfg"
 # AVD configs folder location
 clab_avd_configs: "../intended/configs"
 
-# Use the default vanilla coonfig or AVD
+# AVD clab Structured Folder
+clab_structured_folder: "{{ inventory_dir }}/clab/intended/structured_configs"
+
+# Use the default vanilla config or AVD
 clab_device_default: true
+
+# Use the default vanilla config or AVD
+clab_static_mgmt_ip: false
 
 ```

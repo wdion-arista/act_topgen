@@ -42,7 +42,7 @@
     clab_avd_configs: "{{ inventory_dir }}/clab/intended/configs"
     # true = default config or false = AVD config
     clab_device_default: false
-    # clab_static_mgmt_ip: true
+    clab_static_mgmt_ip: true
 
   tasks:
     - name: Generate ACT / ConatinerLabs Topology File
