@@ -22,6 +22,11 @@
 {%         for mgmt_if in node_mgmt_interfaces %}
 {%             set node_mgmt_ip = mgmt_if.ip_address | split("/") %}
 {%             do node_dict[nodename].update({"ip_addr": node_mgmt_ip[0]}) %}
+{%                  if hostvars[node].act_mgmt_ip is defined and hostvars[node].act_mgmt_ip | length > 0 %}
+{%                      do node_dict[nodename].update({"ip_addr": hostvars[node].act_mgmt_ip}) %}
+{%                  else %}
+{%                      do node_dict[nodename].update({"ip_addr": node_mgmt_ip[0]}) %}
+{%                  endif %}
 {%             break %}
 {%         endfor %}
 {%         do node_dict[nodename].update({"node_type": "veos"}) %}

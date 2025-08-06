@@ -16,26 +16,26 @@
   register: clab_intended_structure_stat
   delegate_to: localhost
 
-- name: Include device structured configuration variables
-  ansible.builtin.include_vars: "{{ filename | trim }}"
-  delegate_to: localhost
-  vars:
-    filename: >-
-      {% if clab_intended_structure_stat.stat.exists and clab_intended_structure_stat.stat.isdir %}
-      {{ clab_structured_folder | default('clab/intended/structured_configs') }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}
-      {% else %}
-      {{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}
-      {% endif %}
-  tags:
-    - always
-
 # - name: Include device structured configuration variables
-#   include_vars: "{{ filename }}"
+#   ansible.builtin.include_vars: "{{ filename | trim }}"
 #   delegate_to: localhost
 #   vars:
-#     filename: "{{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}"
+#     filename: >-
+#       {% if clab_intended_structure_stat.stat.exists and clab_intended_structure_stat.stat.isdir %}
+#       {{ clab_structured_folder | default('clab/intended/structured_configs') }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}
+#       {% else %}
+#       {{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}
+#       {% endif %}
 #   tags:
 #     - always
+
+- name: Include device structured configuration variables
+  include_vars: "{{ filename }}"
+  delegate_to: localhost
+  vars:
+    filename: "{{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}"
+  tags:
+    - always
 
 - name: Build topology
   delegate_to: localhost
