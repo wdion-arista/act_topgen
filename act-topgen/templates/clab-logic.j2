@@ -22,9 +22,15 @@
 {%         if clab_static_mgmt_ip %}
 {%              for mgmt_if in node_mgmt_interfaces %}
 {%                  set node_mgmt_ip = mgmt_if.ip_address | split("/") %}
-{%                  do node_dict[nodename].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
-{# {%                  do node_dict[nodename].update({"env": {}}) %}
-{%                  do node_dict[nodename].env.update({"IPV4": node_mgmt_ip[0]}) %} #}
+{# {%                  do node_dict[nodename].update({"mgmt-ipv4": node_mgmt_ip[0]}) %} #}
+{# {%                  do node_dict[nodename].update({"mgmt2": hostvars[node].fabric_name}) %} #}
+{#{%                  do node_dict[nodename].env.update({"IPV4": node_mgmt_ip[0]}) %} #}
+{%                  if hostvars[node].clab_mgmt_ip is defined and hostvars[node].clab_mgmt_ip | length > 0 %}
+{%                      do node_dict[nodename].update({"mgmt-ipv4": hostvars[node].clab_mgmt_ip}) %}
+{%                  else %}
+{%                      do node_dict[nodename].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
+{%                  endif %}
+
 {%                  break %}
 {%              endfor %}
 {%         endif %}
