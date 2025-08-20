@@ -55,7 +55,7 @@
 {%             for ifdata in node_ethernet_interfaces %}
 {%                 if "peer" in ifdata and "peer_interface" in ifdata and "." not in ifdata.name %}
 {#                     add fabric nodes #}
-{%                     if ifdata.peer in ansible_play_hosts_all or (act_add_connected_nodes == true and ifdata["peer_type"] in act_connected_nodes_map) %}
+{%                     if ifdata.peer in ansible_play_hosts_all or (act_add_connected_nodes == true and ifdata["peer_type"] in clab_connected_nodes_map) %}
 {%                         set link_nodes = [node | replace("_", "-"), ifdata.peer | replace("_", "-")] | join("_") %}
 {%                         set link_ifs = [ifdata.name, ifdata.peer_interface] | join("_") %}
 {%                         if link_nodes not in unique_links %}
@@ -64,14 +64,19 @@
 {%                             do unique_links[link_nodes].append(link_ifs) %}
 {%                         endif %}
 {#                         add external nodes to topology while we're looking at peers #}
-{%                         if act_add_connected_nodes == true and ifdata["peer_type"] in act_connected_nodes_map %}
+{%                         if act_add_connected_nodes == true and ifdata["peer_type"] in clab_connected_nodes_map %}
 {%                             set peer_node = ifdata["peer"] | replace("_", "-") %}
 {%                             set avd_ext_node_neighbordict = dict() %}
 {%                             if peer_node not in avd_ext_nodes and peer_node not in ansible_play_hosts_all %}
 {%                                 do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                                 set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                                 set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
-{%                                 do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
+{%                                 do avd_ext_nodes[peer_node].update({"kind": clab_connected_nodes_map[ifdata["peer_type"]]}) %}
+{%                                 if hostvars[peer_node].clab_mgmt_ip is defined and hostvars[peer_node].clab_mgmt_ip | length > 0 %}
+{%                                     do avd_ext_nodes[peer_node].update({"mgmt-ipv4": hostvars[peer_node].clab_mgmt_ip}) %}
+{%                                 else %}
+{%                                     do avd_ext_nodes[peer_node].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
+{%                                 endif %}
 {%                             endif %}
 {%                         endif %}
 {%                     endif %}
@@ -101,7 +106,7 @@
 {%                     do neighbordict.update({"port": ifdata.name}) %}
 {%                     do node_dict[nodename]["neighbors"].append(neighbordict) %}
 {#                 add non-fabric connected nodes if toggle is set and peer_type is within given map #}
-{%                 elif act_add_connected_nodes == true and ifdata["peer_type"] in act_connected_nodes_map and act_use_old_connections %}
+{%                 elif act_add_connected_nodes == true and ifdata["peer_type"] in clab_connected_nodes_map and act_use_old_connections %}
 {%                     set peer_node = ifdata["peer"] | replace("_", "-") %}
 {%                     set avd_ext_node_neighbordict = dict() %}
 {%                     do avd_ext_node_neighbordict.update({"neighborDevice": nodename}) %}
@@ -111,7 +116,7 @@
 {%                         do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                         set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                         set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
-{%                         do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
+{%                         do avd_ext_nodes[peer_node].update({"kind2": clab_connected_nodes_map[ifdata["peer_type"]]}) %}
 {%                         do avd_ext_nodes[peer_node].update({"neighbors": []}) %}
 {%                         do avd_ext_nodes[peer_node]["neighbors"].append(avd_ext_node_neighbordict) %}
 {%                     else %}
@@ -131,7 +136,7 @@
 {% endfor %}
 {# Add the other nodes to the list #}
 {% for node in avd_ext_nodes %}
-{%     do nodes_list.append({ node: avd_ext_nodes[node] }) %}
+{%     do nodes_list.update({ node: avd_ext_nodes[node] }) %}
 {% endfor %}
 {% if clab_add_tools_server %}
 {%   set node_tool_dict = dict() %}
@@ -148,6 +153,7 @@
 {% do kinds.update({"arista_ceos": {"image": clab_eos_version ,"startup-config": clab_config_dir ~ "/" ~ clab_config_default  , "env": {"USERNAME": act_device_user, "PASSWORD": act_device_password, "CLAB_MGMT_VRF": "MGMT"}}}) %}
 {# {% do kind.update({"generic": {"username": act_device_user, "password": act_device_password, "version": act_generic_os_version}}) %} #}
 {% do kinds.update({"linux": {"image": clab_linux_image, "env" : {"USERNAME": "admin", "PASSWORD": "admin" }}}) %}
+{# {% do kinds.update({"generic": {"image": clab_linux_image, "env" : {"USERNAME": "admin", "PASSWORD": "admin" }}}) %} #}
 {# {% set t_kinds = dict({"kind": kinds})  %} #}
 {% set topology.kinds = dict({"kinds": kinds})  %}
 {% set topology.nodes = dict({"nodes": nodes_list})  %}

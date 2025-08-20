@@ -1,0 +1,432 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+
+import yaml
+import os,sys
+import copy
+from pathlib import Path
+import argparse
+import argcomplete
+
+from dotenv import load_dotenv
+import ruamel.yaml
+
+# Determine the home directory
+home_dir = Path.home()
+
+# Define the path to the .env file
+dotenv_path = Path(f'.env')
+
+# Check if the .env file exists, exit if not
+# if not os.path.exists(dotenv_path):
+#     sys.exit("Error: Missing .env file. Please create one in the same directory as the script.")
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=dotenv_path)
+
+# Get the project name from environment variables, default to 'test'
+# .strip('"') is used to remove potential quotes if the variable is defined with them in the .env file
+PROJECT_NAME = str(os.getenv('PROJECT_NAME', 'test')).strip('"')
+print(f"Loaded .env path: {dotenv_path}, Project Name: {PROJECT_NAME}")
+
+INVENTORY_TYPE_ENV = str(os.getenv('INVENTORY_TYPE', None)).strip('"')
+print(INVENTORY_TYPE_ENV)
+
+def update_ansible_inventory_ips(source_inventory_path, clab_inventory_path, output_inventory_path, project_name, fabric_name, inventory_type='new', env_name=None,site_name=''):
+    """
+    CLAB
+    Copies a source Ansible inventory, updates ansible_host IPs in a specified fabric section
+    based on a clab inventory, and saves the modified inventory to a new file.
+
+    Args:
+        source_inventory_path (str): Path to the original inventory.yml file.
+        clab_inventory_path (str): Path to the clab/clab-dome-g7/ansible-inventory.yml file.
+        output_inventory_path (str): Path where the new inventory-clab.yml will be saved.
+        project_name (str): The project name used in clab hostnames (e.g., 'dome-g7').
+        fabric_name (str): The name of the top-level fabric group in the source inventory (e.g., 'FABRIC', 'SITE1_FABRIC').
+        inventory_type (str): Specifies the structure of the source inventory ('default' or 'sub_groups').
+            'new' expects fabric_name -> children -> group -> hosts.
+            'old' expects fabric_name -> children -> group -> children -> sub_group -> hosts.
+        env_name (str, optional): The name of the environment group (e.g., 'PROD', 'CLAB'). Defaults to None.
+    """
+    yaml = ruamel.yaml.YAML()
+    yaml.preserve_quotes = True
+
+    try:
+        with open(source_inventory_path, 'r') as f:
+            source_inventory = yaml.load(f)
+        print(f"Successfully loaded source inventory from: {source_inventory_path}")
+
+        with open(clab_inventory_path, 'r') as f:
+            clab_inventory = yaml.load(f)
+        print(f"Successfully loaded clab inventory from: {clab_inventory_path}")
+
+        modified_inventory = copy.deepcopy(source_inventory)
+
+        clab_ip_map = {}
+        arista_ceos_hosts = clab_inventory.get('all', {}).get('children', {}).get('arista_ceos', {}).get('hosts', {})
+
+        for clab_hostname, host_data in arista_ceos_hosts.items():
+            if 'ansible_host' in host_data:
+                stripped_hostname = clab_hostname.replace(f'clab-{project_name}-', '')
+                clab_ip_map[stripped_hostname] = host_data['ansible_host']
+        print(f"Extracted {len(clab_ip_map)} IP mappings from clab inventory.")
+        print(f"CLAB IP Map: {clab_ip_map}")
+
+        updated_count = 0
+
+        if env_name is None:
+            main_fabric_group = modified_inventory.get('all', {}).get('children', {}).get(fabric_name, {})
+        else:
+            main_fabric_group = modified_inventory.get('all', {}).get('children', {}).get(env_name, {}).get('children', {}).get(fabric_name, {})
+            children = modified_inventory['all']['children']
+            prod_key = 'PROD'
+            lab_key = 'CLAB'
+            if prod_key in children:
+                # Get the index of 'PROD'
+                keys = list(children.keys())
+                try:
+                    index_of_prod = keys.index(prod_key)
+                except ValueError:
+                    index_of_prod = -1 # Should not happen if prod_key in children, but for safety
+
+                if index_of_prod != -1:
+                    # Get the value associated with 'PROD'
+                    prod_value = children.pop(prod_key)
+
+                    # Insert with the new key at the original index
+                    children.insert(index_of_prod, lab_key, prod_value)
+
+        if not main_fabric_group or 'children' not in main_fabric_group:
+            print(f"Warning: '{fabric_name}' section or its children not found in source inventory. No IPs will be updated.")
+            return
+
+        if inventory_type == 'default':
+            print(f"Processing '{fabric_name}' with 'default' inventory structure...")
+            for group_name, group_data in main_fabric_group['children'].items():
+                if isinstance(group_data, dict) and 'hosts' in group_data:
+                    print(f"  Checking group: {group_name}")
+                    for hostname, host_vars in group_data['hosts'].items():
+                        if host_vars is None:
+                            group_data['hosts'][hostname] = {}
+                            host_vars = group_data['hosts'][hostname]
+
+                        if hostname in clab_ip_map:
+                            old_ip = host_vars.get('ansible_host', 'N/A')
+                            new_ip = clab_ip_map[hostname]
+                            host_vars['ansible_host'] = new_ip
+                            host_vars.pop('clab_mgmt_ip',None)
+                            host_vars.pop('act_mgmt_ip',None)
+                            if old_ip == 'N/A':
+                                print(f"    Added {hostname}: {new_ip}")
+                            else:
+                                print(f"    Updated {hostname}: {old_ip} -> {new_ip}")
+                            updated_count += 1
+                        else:
+                            print(f"    Skipping {hostname}: No matching IP found in clab inventory.")
+                else:
+                    print(f"  Skipping group '{group_name}': No 'hosts' found or not a dictionary.")
+
+        elif inventory_type == 'sub_groups':
+            print(f"Processing '{fabric_name}' with 'sub_groups' inventory structure...")
+            fabric_sub_groups = main_fabric_group.get('children', {})
+
+            for group_name, group_data in fabric_sub_groups.items():
+                if isinstance(group_data, dict) and 'children' in group_data:
+                    print(f"  Checking group: {group_name}")
+                    for sub_group_name, sub_group_data in group_data['children'].items():
+                        if isinstance(sub_group_data, dict) and 'hosts' in sub_group_data:
+                            print(f"    Checking sub-group: {sub_group_name}")
+                            for hostname, host_vars in sub_group_data['hosts'].items():
+                                if host_vars is None:
+                                    sub_group_data['hosts'][hostname] = {}
+                                    host_vars = sub_group_data['hosts'][hostname]
+
+                                if hostname in clab_ip_map:
+                                    old_ip = host_vars.get('ansible_host', 'N/A')
+                                    new_ip = clab_ip_map[hostname]
+                                    host_vars['ansible_host'] = new_ip
+                                    host_vars.pop('clab_mgmt_ip',None)
+                                    host_vars.pop('act_mgmt_ip',None)
+                                    if old_ip == 'N/A':
+                                        print(f"      Added {hostname}: {new_ip}")
+                                    else:
+                                        print(f"      Updated {hostname}: {old_ip} -> {new_ip}")
+                                    updated_count += 1
+                                else:
+                                    print(f"      Skipping {hostname}: No matching IP found in clab inventory.")
+                        else:
+                            print(f"    Skipping sub-group '{sub_group_name}': No 'hosts' found or not a dictionary.")
+                else:
+                    print(f"  Skipping group '{group_name}': No 'children' found or not a dictionary.")
+        else:
+            print(f"Error: Invalid inventory_type '{inventory_type}'. Must be 'default' or 'sub_groups'. No IPs updated.")
+            return
+
+        print(f"Total IPs updated in '{fabric_name}' section: {updated_count}")
+
+        with open(output_inventory_path, 'w') as f:
+            yaml.dump(modified_inventory, f)
+        print(f"Modified inventory saved to: {output_inventory_path}")
+        return True
+    
+    except FileNotFoundError as e:
+        print(f"Error: One of the inventory files not found. Please check paths. Did you run the container lab at least once? \n{e}")
+    except ruamel.yaml.YAMLError as e:
+        print(f"Error parsing YAML file. Please check YAML syntax. {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+
+def update_ansible_inventory_from_internal_ips(source_inventory_path, new_clab_yaml_path, output_inventory_path, fabric_name, inventory_type='default', env_name=None):
+    """
+    ACT Toplogy
+    Copies a source Ansible inventory, updates ansible_host IPs in a specified fabric section
+    based on 'internal_ip' from a new clab YAML structure, and saves the modified inventory to a new file.
+
+    Args:
+        source_inventory_path (str): Path to the original inventory.yml file.
+        new_clab_yaml_path (str): Path to the new YAML file containing hostname to internal_ip mappings.
+        output_inventory_path (str): Path where the new inventory-clab.yml will be saved.
+        fabric_name (str): The name of the top-level fabric group in the source inventory (e.g., 'FABRIC', 'SITE1_FABRIC').
+        inventory_type (str): Specifies the structure of the source inventory ('default' or 'sub_groups').
+            'default' expects fabric_name -> children -> group -> hosts.
+            'sub_groups' expects fabric_name -> children -> group -> children -> sub_group -> hosts.
+        env_name (str, optional): The name of the environment group (e.g., 'PROD', 'CLAB', 'ACT'). Defaults to None.
+    """
+    yaml = ruamel.yaml.YAML()
+    yaml.preserve_quotes = True
+
+    try:
+        with open(source_inventory_path, 'r') as f:
+            source_inventory = yaml.load(f)
+        print(f"Successfully loaded source inventory from: {source_inventory_path}")
+
+        with open(new_clab_yaml_path, 'r') as f:
+            new_clab_data = yaml.load(f)
+        print(f"Successfully loaded new clab YAML from: {new_clab_yaml_path}")
+
+        modified_inventory = copy.deepcopy(source_inventory)
+
+        # Extract IP mappings from the new clab YAML
+        internal_ip_map = {}
+        # The 'new_clab_data' is a list, and the actual data is the first item in that list
+        if isinstance(new_clab_data, ruamel.yaml.CommentedSeq) and len(new_clab_data) > 0:
+            lab_resource_data = new_clab_data[0] # Get the first (and likely only) document
+            # Now, access 'devices' from this dictionary
+            for device_type, device_list in lab_resource_data.get('devices', {}).items():
+                for device_info in device_list:
+                    hostname = device_info.get('hostname')
+                    internal_ip = device_info.get('internal_ip')
+                    cloud_ip = device_info.get('cloud_ip')
+                    if hostname and internal_ip:
+                        internal_ip_map[hostname] = { 'internal_ip': internal_ip , 'cloud_ip': cloud_ip}
+                        
+        else:
+            print(f"Warning: Unexpected structure in '{new_clab_yaml_path}'. Expected a list with a dictionary as its first element.")
+            return # Exit or handle as appropriate
+
+        print(f"Extracted {len(internal_ip_map)} internal IP mappings from new clab YAML.")
+        print(f"Internal IP Map: {internal_ip_map}")
+
+        updated_count = 0
+
+        if env_name is None:
+            main_fabric_group = modified_inventory.get('all', {}).get('children', {}).get(fabric_name, {})
+        else:
+            main_fabric_group = modified_inventory.get('all', {}).get('children', {}).get(env_name, {}).get('children', {}).get(fabric_name, {})
+            children = modified_inventory['all']['children']
+            prod_key = 'PROD'
+            lab_key = 'ACT'
+            if prod_key in children:
+                # Get the index of 'PROD'
+                keys = list(children.keys())
+                try:
+                    index_of_prod = keys.index(prod_key)
+                except ValueError:
+                    index_of_prod = -1 # Should not happen if prod_key in children, but for safety
+
+                if index_of_prod != -1:
+                    # Get the value associated with 'PROD'
+                    prod_value = children.pop(prod_key)
+
+                    # Insert with the new key at the original index
+                    children.insert(index_of_prod, lab_key, prod_value)
+
+
+        if not main_fabric_group or 'children' not in main_fabric_group:
+            print(f"Warning: '{fabric_name}' section or its children not found in source inventory. No IPs will be updated.")
+            return
+
+        if inventory_type == 'default':
+            print(f"Processing '{fabric_name}' with 'default' inventory structure...")
+            for group_name, group_data in main_fabric_group['children'].items():
+                if isinstance(group_data, dict) and 'hosts' in group_data:
+                    print(f"  Checking group: {group_name}")
+                    for hostname, host_vars in group_data['hosts'].items():
+                        if host_vars is None:
+                            group_data['hosts'][hostname] = {}
+                            host_vars = group_data['hosts'][hostname]
+
+                        if hostname in internal_ip_map:
+                            old_ip = host_vars.get('ansible_host', 'N/A')
+                            new_ip = internal_ip_map[hostname]['internal_ip']
+                            new_cloud_ip = internal_ip_map[hostname]['cloud_ip']
+                            host_vars['ansible_host'] = new_ip
+                            host_vars['cloud_ip'] = new_cloud_ip
+                            host_vars.pop('clab_mgmt_ip',None)
+                            host_vars.pop('act_mgmt_ip',None)
+                            if old_ip == 'N/A':
+                                print(f"    Added {hostname}: {new_ip} \n cloud_ip: {new_cloud_ip}")
+                            else:
+                                print(f"    Updated {hostname}: {old_ip} -> {new_ip} \n cloud_ip: {new_cloud_ip}")
+                            updated_count += 1
+                        else:
+                            print(f"    Skipping {hostname}: No matching internal IP found in new clab YAML.")
+                else:
+                    print(f"  Skipping group '{group_name}': No 'hosts' found or not a dictionary.")
+
+        elif inventory_type == 'sub_groups':
+            print(f"Processing '{fabric_name}' with 'sub_groups' inventory structure...")
+            fabric_sub_groups = main_fabric_group.get('children', {})
+
+            for group_name, group_data in fabric_sub_groups.items():
+                if isinstance(group_data, dict) and 'children' in group_data:
+                    print(f"  Checking group: {group_name}")
+                    for sub_group_name, sub_group_data in group_data['children'].items():
+                        if isinstance(sub_group_data, dict) and 'hosts' in sub_group_data:
+                            print(f"    Checking sub-group: {sub_group_name}")
+                            for hostname, host_vars in sub_group_data['hosts'].items():
+                                if host_vars is None:
+                                    sub_group_data['hosts'][hostname] = {}
+                                    host_vars = sub_group_data['hosts'][hostname]
+
+                                if hostname in internal_ip_map:
+                                    old_ip = host_vars.get('ansible_host', 'N/A')
+                                    new_ip = internal_ip_map[hostname]
+                                    host_vars['ansible_host'] = new_ip
+                                    host_vars.pop('clab_mgmt_ip',None)
+                                    host_vars.pop('act_mgmt_ip',None)
+                                    if old_ip == 'N/A':
+                                        print(f"      Added {hostname}: {new_ip}")
+                                    else:
+                                        print(f"      Updated {hostname}: {old_ip} -> {new_ip}")
+                                    updated_count += 1
+                                else:
+                                    print(f"      Skipping {hostname}: No matching internal IP found in new clab YAML.")
+                        else:
+                            print(f"    Skipping sub-group '{sub_group_name}': No 'hosts' found or not a dictionary.")
+                else:
+                    print(f"  Skipping group '{group_name}': No 'children' found or not a dictionary.")
+        else:
+            print(f"Error: Invalid inventory_type '{inventory_type}'. Must be 'default' or 'sub_groups'. No IPs updated.")
+            return
+
+        print(f"Total IPs updated in '{fabric_name}' section: {updated_count}")
+        print("checking TOOLS-SERVER IP")
+        if 'tools-server' in internal_ip_map:
+            
+            new_ip = internal_ip_map['tools-server']['internal_ip']
+            
+            tools_fabric = modified_inventory.get('all', {}).get('children', {}).get('TOOLS', {}).get('children', {}).get('TOOLSSERVER', {}).get('hosts', {}).get('tools-server', {})
+            print(tools_fabric) 
+            if 'ansible_host' in tools_fabric:
+                print('yes ansible')
+                print(tools_fabric['ansible_host'])
+                print()
+                tools_fabric['ansible_host']=new_ip
+            else:
+                tools_fabric = modified_inventory.get('all', {}).get('children', {})
+                tools_fabric['TOOLS'] = {'children':{'TOOLSSERVER':{'hosts':{'tools-server':{'ansible_hosts':new_ip}}}}}
+            
+        with open(output_inventory_path, 'w') as f:
+            yaml.dump(modified_inventory, f)
+        print(f"Modified inventory saved to: {output_inventory_path}")
+        return True
+    except FileNotFoundError as e:
+        print(f"Error: One of the inventory files not found. Please check paths. \n{e}")
+    except ruamel.yaml.YAMLError as e:
+        print(f"Error parsing YAML file. Please check YAML syntax. {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+def main():
+    parser = argparse.ArgumentParser(description="A script to setup a lab inventory file by updating host IPs from Containerlab or a custom YAML.")
+
+    # Positional arguments
+    parser.add_argument("--inv_file", type=str, default="inventory.yml", help="Path to the inventory file (e.g., '.inventory.yml').")
+    parser.add_argument("--fabric_name", type=str, help="The name of the top-level fabric group in your inventory.yml (e.g., 'FABRIC' for old, 'SITE1_FABRIC' for new).")
+    parser.add_argument("--site", type=str, help="The name of the Site (e.g., 'my_site').")
+    
+    # Optional arguments
+    parser.add_argument("--inventory-type", type=str, default="default", choices=["default", "sub_groups"],
+                        help="Specify the inventory structure type: 'default' or 'sub_groups'.")
+    parser.add_argument("--env_name", type=str, default=None ,
+                        help="Specify the environment structure: 'PROD', 'CLAB', 'ACT'.")
+    parser.add_argument("--clab", type=str,
+                        help="Path to the ansible-inventory.yml generated by Containerlab.")
+    parser.add_argument("--act", type=str,
+                        help="Path to the ACT YAML file containing hostname and internal_ip mappings.")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
+    args = parser.parse_args()
+    argcomplete.autocomplete(parser)
+
+    if args.inventory_type:
+        INVENTORY_TYPE=f'{args.inventory_type}'
+    else:
+        if INVENTORY_TYPE_ENV == None:
+            INVENTORY_TYPE="default"
+        else:
+            INVENTORY_TYPE=f'{INVENTORY_TYPE_ENV}'
+        
+
+    if args.verbose:
+        print(f"Running in verbose mode.")
+        print(f"Inventory file: {args.inv_file}")
+        print(f"Fabric Name: {args.fabric_name}")
+        print(f"Inventory Type: {INVENTORY_TYPE}")
+        print(f"Site: {args.site}")
+        if args.clab:
+            print(f"Containerlab Inventory Path: {args.clab}")
+        if args.act:
+            print(f"ACT YAML Path: {args.act}")
+
+    if not os.path.exists(args.inv_file):
+        sys.exit(f"Error: Missing {args.inv_file} file. Please create one.")
+
+    inv_directory, inv_filename = os.path.split(f'{args.inv_file}')
+    print(f'inv dir: {inv_directory}')
+    if inv_directory == "":
+        print("empty dir")
+        inv_directory = "."
+    if args.env_name:
+        ENV_NAME=f'{args.env_name}'
+    else:
+        ENV_NAME=None
+    
+    FABRIC_NAME = args.fabric_name
+    SOURCE_INVENTORY = f'{inv_directory}/{inv_filename}'
+    result=False
+    # Determine output inventory based on which flag is used
+    if args.act:
+        OUTPUT_INVENTORY = f'{inv_directory}/inventory-act.yml'
+        print(f"Output will be saved to: {OUTPUT_INVENTORY}")
+        result = update_ansible_inventory_from_internal_ips(SOURCE_INVENTORY, args.act, OUTPUT_INVENTORY, FABRIC_NAME, INVENTORY_TYPE, ENV_NAME)
+    elif args.clab:
+        if args.site:
+            FULL_PROJECT_NAME=f'{PROJECT_NAME}-{args.site}'
+        else:
+            FULL_PROJECT_NAME=f'{PROJECT_NAME}'
+        OUTPUT_INVENTORY = f'{inv_directory}/inventory-containerlab.yml'
+        print(f"Output will be saved to: {OUTPUT_INVENTORY}")
+        result = update_ansible_inventory_ips(SOURCE_INVENTORY, args.clab, OUTPUT_INVENTORY, FULL_PROJECT_NAME, FABRIC_NAME, INVENTORY_TYPE, ENV_NAME,args.site)
+    else:
+        print("This is act or clab?")
+    if result:
+        print("\n--- Script finished ---")
+        print(f"Check '{OUTPUT_INVENTORY}' for the updated inventory.")
+        print("You can now use this inventory with your Ansible playbooks, e.g.:")
+        print(f"ansible-playbook your_playbook.yml -i {OUTPUT_INVENTORY} -l {FABRIC_NAME}")
+
+if __name__ == "__main__":
+    main()
