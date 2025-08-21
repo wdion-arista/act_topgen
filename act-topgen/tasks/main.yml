@@ -4,7 +4,7 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: 0775
+    mode: "0775"
   loop:
     - "{{ output_folder }}"
   delegate_to: localhost
@@ -30,7 +30,7 @@
 #     - always
 
 - name: Include device structured configuration variables
-  include_vars: "{{ filename }}"
+  ansible.builtin.include_vars: "{{ filename }}"
   delegate_to: localhost
   vars:
     filename: "{{ structured_folder }}/{{ inventory_hostname }}.{{ avd_structured_config_file_format }}"
@@ -43,14 +43,14 @@
   ansible.builtin.template:
     src: main.j2
     dest: "{{ output_folder }}/{{ output_filename }}"
-    mode: 0664
+    mode: "0664"
 
-#Clab
+# Clab
 - name: Create required clab output directories if not present
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: 0775
+    mode: "0775"
   loop:
     - "{{ clab_output_folder }}"
   delegate_to: localhost
@@ -60,11 +60,11 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: 0775
+    mode: "0775"
   loop:
     - "{{ clab_output_folder }}/{{ clab_config_dir }}"
   delegate_to: localhost
-  run_once: true   
+  run_once: true
 
 - name: Build topology Clab
   delegate_to: localhost
@@ -72,11 +72,11 @@
   ansible.builtin.template:
     src: clab-main.j2
     dest: "{{ clab_output_folder }}/{{ clab_output_filename }}"
-    mode: 0664  
+    mode: "0664"
 
 - name: Build basefile clab
   delegate_to: localhost
   ansible.builtin.template:
     src: clab-config-base.j2
     dest: "{{ clab_output_folder }}/{{ clab_config_dir }}/{{ inventory_hostname }}.cfg"
-    mode: 0664  
+    mode: "0664"
