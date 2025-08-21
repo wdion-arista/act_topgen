@@ -83,9 +83,13 @@
 {%                                 do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                                 set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                                 set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
-{%                                 do avd_ext_nodes[peer_node].update({"ip_addr": mgmt_ip}) %}
+{%                                 do avd_ext_nodes[peer_node].update({"ip_addr": hostvars[peer_node].act_mgmt_ip | default(mgmt_ip)}) %}
 {%                                 do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
 {%                                 do avd_ext_nodes[peer_node].update({"ports": []}) %}
+{# {%                                 do avd_ext_nodes[peer_node].update({"ports2": hostvars[peer_node].act_mgmt_ip}) %} #}
+{%                                 if hostvars[peer_node].act_veos_internet_access | default(false) and avd_ext_nodes[peer_node]["node_type"] == "generic" %}
+{%                                   do avd_ext_nodes[peer_node].update({"internet_access": true}) %}
+{%                                 endif %}
 {%                             endif %}
 {%                         endif %}
 {%                     elif ifdata.peer not in ansible_play_hosts_all %}

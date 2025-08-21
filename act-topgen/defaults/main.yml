@@ -106,7 +106,7 @@ clab_device_default: true
 # Use the default vanilla config or AVD
 clab_static_mgmt_ip: false
 
-#server mapping to just for containerlab vms
+# Server mapping to just for containerlab vms
 clab_connected_nodes_map:
   server: 'linux'
   workstation: 'linux'
