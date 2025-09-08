@@ -28,7 +28,7 @@
 {%                  if hostvars[node].clab_mgmt_ip is defined and hostvars[node].clab_mgmt_ip | length > 0 %}
 {%                      do node_dict[nodename].update({"mgmt-ipv4": hostvars[node].clab_mgmt_ip}) %}
 {%                  else %}
-{%                      do node_dict[nodename].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
+{%                      do node_dict[nodename].update({"mgmt-ipv4": (node_mgmt_ip[0] | default(''))}) %}
 {%                  endif %}
 
 {%                  break %}
@@ -75,7 +75,9 @@
 {%                                 if hostvars[peer_node].clab_mgmt_ip is defined and hostvars[peer_node].clab_mgmt_ip | length > 0 %}
 {%                                     do avd_ext_nodes[peer_node].update({"mgmt-ipv4": hostvars[peer_node].clab_mgmt_ip}) %}
 {%                                 else %}
-{%                                     do avd_ext_nodes[peer_node].update({"mgmt-ipv4": node_mgmt_ip[0]}) %}
+{%                                   if node_mgmt_ip is defined and node_mgmt_ip | length > 0 %}
+{%                                     do avd_ext_nodes[peer_node].update({"mgmt-ipv4": node_mgmt_ip[0] | default('')} ) %}
+{%                                   endif %}
 {%                                 endif %}
 {%                             endif %}
 {%                         endif %}
