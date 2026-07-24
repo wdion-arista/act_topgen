@@ -29,6 +29,9 @@
 {%                  endif %}
 {%             break %}
 {%         endfor %}
+{%         if "ip_addr" not in node_dict[nodename] and hostvars[node].act_mgmt_ip is defined and hostvars[node].act_mgmt_ip | length > 0 %}
+{%             do node_dict[nodename].update({"ip_addr": hostvars[node].act_mgmt_ip}) %}
+{%         endif %}
 {%         do node_dict[nodename].update({"node_type": "veos"}) %}
 {%         if act_use_old_connections %}
 {%             do node_dict[nodename].update({"neighbors": []}) %}
@@ -99,7 +102,7 @@
 {%                                 endif %}
 {%                             endif %}
 {%                         endif %}
-{%                     elif _peer not in ansible_play_hosts_all %}
+{%                     elif _peer not in ansible_play_hosts_all and "device_model" not in node_dict[nodename] %}
 {%                         do node_dict[nodename].ports.append(ifdata.name) %}
 {%                     endif %}
 {%                 endif %}
@@ -153,10 +156,10 @@
 {%                     do neighbordict.update({"neighborPort": _peer_interface}) %}
 {%                     do neighbordict.update({"port": ifdata.name}) %}
 {%                     do node_dict[nodename]["neighbors"].append(neighbordict) %}
-{%                 elif act_use_old_connections %}
+{%                 elif act_use_old_connections and "device_model" not in node_dict[nodename] %}
 {%                     do node_dict[nodename].ports.append(ifdata.name) %}
 {%                 endif %}
-{%             elif "." not in ifdata.name %}
+{%             elif "." not in ifdata.name and "device_model" not in node_dict[nodename] %}
 {%                 do node_dict[nodename].ports.append(ifdata.name) %}
 {%             endif %}
 {%         endfor %}
