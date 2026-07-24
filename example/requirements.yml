@@ -3,12 +3,9 @@ roles:
   - name: act-topgen
     src: https://github.com/wdion-arista/act_topgen.git
     scm: git
-    # version: v1.0.2
+    # version: v1.0.8
     version: main
-  # - name: arista.avd.eos_designs_to_containerlab
-  #   src: https://github.com/wdion-arista/eos_designs_to_containerlab.git
-  #   scm: git
-  #   version: main
+
 collections:
   - name: community.general
   - name: community.docker

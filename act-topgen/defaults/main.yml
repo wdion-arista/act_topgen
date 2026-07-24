@@ -21,6 +21,17 @@ act_device_password: ""
 act_default_ports: []
 # Adds device models from structured config metadata if present
 act_use_device_models: true
+# Map AVD platform family names to ACT-supported device models
+# AVD 6.x uses short platform names (e.g., 7280SR3) that may not match
+# the full model numbers ACT requires (e.g., 7280SR3-48YC8)
+act_device_model_map:
+  "7280SR3": "7280SR3-48YC8"
+  "7280R3": "7280SR3-48YC8"
+  "7280R": "7280SR-48C6"
+  "7280R2": "7280SR2-48YC6"
+  "7020R": "7020SR-24C2"
+  "7020TD": "7020TR-48"
+  "720XP": "720XP-48ZC2"
 
 # Extra node parameters
 act_cvp_user: "root"
@@ -104,7 +115,11 @@ clab_structured_folder: "{{ inventory_dir }}/clab/intended/structured_configs"
 clab_device_default: true
 
 # Use the default vanilla config or AVD
-clab_static_mgmt_ip: false
+clab_static_mgmt_ip: true
+
+# Interface mapping file for cEOS Management1 (AVD 6.x digital twin default)
+clab_interface_mapping_file: "interface_mapping.json"
+clab_mgmt_interface_name: "Management1"
 
 # Server mapping to just for containerlab vms
 clab_connected_nodes_map:
