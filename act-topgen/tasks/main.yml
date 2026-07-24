@@ -74,6 +74,14 @@
     dest: "{{ clab_output_folder }}/{{ clab_output_filename }}"
     mode: "0664"
 
+- name: Generate cEOS interface mapping file
+  delegate_to: localhost
+  run_once: true
+  ansible.builtin.template:
+    src: clab-interface-mapping.j2
+    dest: "{{ clab_output_folder }}/{{ clab_interface_mapping_file }}"
+    mode: "0664"
+
 - name: Build basefile clab
   delegate_to: localhost
   ansible.builtin.template:

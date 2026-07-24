@@ -56,8 +56,10 @@
 {%         if act_use_device_models is true %}
 {%             if hostvars[node].metadata is defined %}
 {%                 if hostvars[node].metadata.platform is defined and hostvars[node].metadata.platform is not none %}
-{%                     if hostvars[node].metadata.platform | lower is not in ["veos-lab", "veos_lab", "veos", "ceos-lab", "ceos_lab", "ceos"] %}
-{%                         do node_dict[nodename].update({"device_model": hostvars[node].metadata.platform }) %}
+{%                     set _platform = hostvars[node].metadata.platform %}
+{%                     if _platform | lower is not in ["veos-lab", "veos_lab", "veos", "ceos-lab", "ceos_lab", "ceos", "ceoslab"] %}
+{%                         set _device_model = act_device_model_map[_platform] | default(_platform) %}
+{%                         do node_dict[nodename].update({"device_model": _device_model}) %}
 {%                     endif %}
 {%                 endif %}
 {%             endif %}
@@ -65,34 +67,39 @@
 {#         building links definition as per new ACT standard #}
 {%         if not act_use_old_connections %}
 {%             for ifdata in node_ethernet_interfaces %}
-{%                 if "peer" in ifdata and "peer_interface" in ifdata and "." not in ifdata.name %}
+{#                 AVD 6.x moved peer fields under metadata; fall back to top-level for AVD 5.x #}
+{%                 set _peer = ifdata.get("metadata", {}).get("peer", ifdata.get("peer")) %}
+{%                 set _peer_interface = ifdata.get("metadata", {}).get("peer_interface", ifdata.get("peer_interface")) %}
+{%                 set _peer_type = ifdata.get("metadata", {}).get("peer_type", ifdata.get("peer_type", "")) %}
+{%                 if _peer is not none and _peer_interface is not none and "." not in ifdata.name %}
 {#                     add fabric nodes #}
-{%                     if ifdata.peer in ansible_play_hosts_all or (act_add_connected_nodes == true and ifdata["peer_type"] in act_connected_nodes_map) %}
-{%                         set link_nodes = [node | replace("_", "-"), ifdata.peer | replace("_", "-")] | join("_") %}
-{%                         set link_ifs = [ifdata.name, ifdata.peer_interface] | join("_") %}
+{%                     if _peer in ansible_play_hosts_all or (act_add_connected_nodes == true and _peer_type in act_connected_nodes_map) %}
+{%                         set link_nodes = [node | replace("_", "-"), _peer | replace("_", "-")] | join("_") %}
+{%                         set link_ifs = [ifdata.name, _peer_interface] | join("_") %}
 {%                         if link_nodes not in unique_links %}
 {%                             do unique_links.update({link_nodes: [link_ifs]}) %}
 {%                         elif link_ifs not in unique_links[link_nodes] %}
 {%                             do unique_links[link_nodes].append(link_ifs) %}
 {%                         endif %}
 {#                         add external nodes to topology while we're looking at peers #}
-{%                         if act_add_connected_nodes == true and ifdata["peer_type"] in act_connected_nodes_map %}
-{%                             set peer_node = ifdata["peer"] | replace("_", "-") %}
+{%                         if act_add_connected_nodes == true and _peer_type in act_connected_nodes_map %}
+{%                             set peer_node = _peer | replace("_", "-") %}
 {%                             set avd_ext_node_neighbordict = dict() %}
 {%                             if peer_node not in avd_ext_nodes and peer_node not in ansible_play_hosts_all %}
 {%                                 do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                                 set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                                 set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
 {%                                 do avd_ext_nodes[peer_node].update({"ip_addr": hostvars[peer_node].act_mgmt_ip | default(mgmt_ip)}) %}
-{%                                 do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
-{%                                 do avd_ext_nodes[peer_node].update({"ports": []}) %}
-{# {%                                 do avd_ext_nodes[peer_node].update({"ports2": hostvars[peer_node].act_mgmt_ip}) %} #}
+{%                                 do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[_peer_type]}) %}
+{%                                 if act_connected_nodes_map[_peer_type] == "veos" %}
+{%                                     do avd_ext_nodes[peer_node].update({"ports": []}) %}
+{%                                 endif %}
 {%                                 if hostvars[peer_node].act_veos_internet_access | default(false) and avd_ext_nodes[peer_node]["node_type"] == "generic" %}
 {%                                   do avd_ext_nodes[peer_node].update({"internet_access": true}) %}
 {%                                 endif %}
 {%                             endif %}
 {%                         endif %}
-{%                     elif ifdata.peer not in ansible_play_hosts_all %}
+{%                     elif _peer not in ansible_play_hosts_all %}
 {%                         do node_dict[nodename].ports.append(ifdata.name) %}
 {%                     endif %}
 {%                 endif %}
@@ -110,27 +117,31 @@
 {%         endif %}
 {#         old ACT standard way to build node connections #}
 {%         for ifdata in node_ethernet_interfaces %}
-{%             if "peer" in ifdata and "peer_interface" in ifdata and "." not in ifdata.name %}
+{#             AVD 6.x moved peer fields under metadata; fall back to top-level for AVD 5.x #}
+{%             set _peer = ifdata.get("metadata", {}).get("peer", ifdata.get("peer")) %}
+{%             set _peer_interface = ifdata.get("metadata", {}).get("peer_interface", ifdata.get("peer_interface")) %}
+{%             set _peer_type = ifdata.get("metadata", {}).get("peer_type", ifdata.get("peer_type", "")) %}
+{%             if _peer is not none and _peer_interface is not none and "." not in ifdata.name %}
 {#                 add fabric connected nodes #}
-{%                 if ifdata["peer"] in ansible_play_hosts_all and act_use_old_connections %}
+{%                 if _peer in ansible_play_hosts_all and act_use_old_connections %}
 {%                     set neighbordict = dict() %}
-{%                     do neighbordict.update({"neighborDevice": ifdata["peer"] | replace("_", "-")}) %}
-{%                     do neighbordict.update({"neighborPort": ifdata["peer_interface"]}) %}
+{%                     do neighbordict.update({"neighborDevice": _peer | replace("_", "-")}) %}
+{%                     do neighbordict.update({"neighborPort": _peer_interface}) %}
 {%                     do neighbordict.update({"port": ifdata.name}) %}
 {%                     do node_dict[nodename]["neighbors"].append(neighbordict) %}
 {#                 add non-fabric connected nodes if toggle is set and peer_type is within given map #}
-{%                 elif act_add_connected_nodes == true and ifdata["peer_type"] in act_connected_nodes_map and act_use_old_connections %}
-{%                     set peer_node = ifdata["peer"] | replace("_", "-") %}
+{%                 elif act_add_connected_nodes == true and _peer_type in act_connected_nodes_map and act_use_old_connections %}
+{%                     set peer_node = _peer | replace("_", "-") %}
 {%                     set avd_ext_node_neighbordict = dict() %}
 {%                     do avd_ext_node_neighbordict.update({"neighborDevice": nodename}) %}
 {%                     do avd_ext_node_neighbordict.update({"neighborPort": ifdata.name}) %}
-{%                     do avd_ext_node_neighbordict.update({"port": ifdata["peer_interface"]}) %}
+{%                     do avd_ext_node_neighbordict.update({"port": _peer_interface}) %}
 {%                     if peer_node not in avd_ext_nodes and peer_node not in ansible_play_hosts_all %}
 {%                         do avd_ext_nodes.update({peer_node: dict()}) %}
 {%                         set mgmt_ip = act_connected_nodes_range | ansible.utils.ipaddr('network') | ansible.utils.ipmath(ns.avd_ext_nodes_count)  %}
 {%                         set ns.avd_ext_nodes_count = ns.avd_ext_nodes_count + 1 %}
 {%                         do avd_ext_nodes[peer_node].update({"ip_addr": mgmt_ip}) %}
-{%                         do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[ifdata["peer_type"]]}) %}
+{%                         do avd_ext_nodes[peer_node].update({"node_type": act_connected_nodes_map[_peer_type]}) %}
 {%                         do avd_ext_nodes[peer_node].update({"neighbors": []}) %}
 {%                         do avd_ext_nodes[peer_node].update({"ports": []}) %}
 {%                         do avd_ext_nodes[peer_node]["neighbors"].append(avd_ext_node_neighbordict) %}
@@ -138,8 +149,8 @@
 {%                         do avd_ext_nodes[peer_node]["neighbors"].append(avd_ext_node_neighbordict) %}
 {%                     endif %}
 {%                     set neighbordict = dict() %}
-{%                     do neighbordict.update({"neighborDevice": ifdata["peer"] | replace("_", "-")}) %}
-{%                     do neighbordict.update({"neighborPort": ifdata["peer_interface"]}) %}
+{%                     do neighbordict.update({"neighborDevice": _peer | replace("_", "-")}) %}
+{%                     do neighbordict.update({"neighborPort": _peer_interface}) %}
 {%                     do neighbordict.update({"port": ifdata.name}) %}
 {%                     do node_dict[nodename]["neighbors"].append(neighbordict) %}
 {%                 elif act_use_old_connections %}

@@ -1,0 +1,21 @@
+{% set all_eth = {} -%}
+{% for node in ansible_play_hosts_all -%}
+{%   if hostvars[node].ethernet_interfaces is defined -%}
+{%     for ifdata in hostvars[node].ethernet_interfaces -%}
+{%       if ifdata.name is defined and "." not in ifdata.name -%}
+{%         set eth_name = ifdata.name | replace("/", "_") | replace("Ethernet", "eth") -%}
+{%         do all_eth.update({eth_name: ifdata.name}) -%}
+{%       endif -%}
+{%     endfor -%}
+{%   endif -%}
+{% endfor -%}
+{
+    "ManagementIntf": {
+        "eth0": "{{ clab_mgmt_interface_name }}"
+    },
+    "EthernetIntf": {
+{% for eth_name, eos_name in all_eth | dictsort %}
+        "{{ eth_name }}": "{{ eos_name }}"{{ "," if not loop.last else "" }}
+{% endfor %}
+    }
+}
